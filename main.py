@@ -18,7 +18,7 @@ COLOR_DEFAULT = 0x1DA1F2
 COLOR_ERROR   = 0xED4245
 COLOR_SUCCESS = 0x57F287
 
-BANNER_URL = https://media.discordapp.net/attachments/1275695804945793035/1528448435810730014/sHet8AAAAAZJREFUAwCZWWojKDIiIAAAAABJRU5ErkJggg.png?ex=6a5e5608&is=6a5d0488&hm=c8640252464f04b76fad6f2209967c972702b13e9e2ce1e24b96beb31f802bca&=&format=webp&quality=lossless&width=446&height=446
+BANNER_URL =https://i.pinimg.com/736x/45/12/8f/45128f5b3ecd70c7860fb1bead5afc03.jpg
 
 
 _cache: dict = {}
