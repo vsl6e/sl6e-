@@ -18,9 +18,6 @@ COLOR_DEFAULT = 0x1DA1F2
 COLOR_ERROR   = 0xED4245
 COLOR_SUCCESS = 0x57F287
 
-BANNER_URL =https://i.pinimg.com/736x/45/12/8f/45128f5b3ecd70c7860fb1bead5afc03.jpg
-
-
 _cache: dict = {}
 CACHE_TTL = 8
 
