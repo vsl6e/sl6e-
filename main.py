@@ -5,13 +5,15 @@ import os
 import asyncio
 import time
 
+# معرف السيرفر الحروفي (Cfx Join ID) لتفادي حظر الجدار الحماي
+CFX_ID = "49az49"
 
-SERVER_IP   = "212.107.14.169"
-SERVER_PORT = "30120"
-GUILD_ID    = 1510735912185630812
+GUILD_ID     = 1510735912185630812
+SERVER_IP    = "212.107.14.169"
+SERVER_PORT  = "30120"
 
-BASE_URL = f"http://{SERVER_IP}:{SERVER_PORT}/players.json"
-INFO_URL = f"http://{SERVER_IP}:{SERVER_PORT}/info.json"
+# الاستعلام من الـ API الموحد لفايف إم الذي يحتوي على اللاعبين والمعلومات معاً
+BASE_URL = f"https://servers-frontend.fivem.net/api/servers/single/{CFX_ID}"
 
 FETCH_TIMEOUT = 5
 COLOR_DEFAULT = 0x1DA1F2
@@ -79,7 +81,7 @@ def panel_embed() -> discord.Embed:
 
 
 _HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json",
 }
 
@@ -108,11 +110,18 @@ async def _fetch_json(url: str, cache_key: str):
         print(f"⚠️ fetch error [{url}]: {e}")
     return None
 
+# بما أن الرابط واحد، نقوم بجلب البيانات كاملة ثم استخراج ما نحتاجه منها
 async def fetch_players():
-    return await _fetch_json(BASE_URL, "players")
+    res = await _fetch_json(BASE_URL, "cfx_data")
+    if res and "Data" in res:
+        return res["Data"].get("players", [])
+    return None
 
 async def fetch_info():
-    return await _fetch_json(INFO_URL, "info")
+    res = await _fetch_json(BASE_URL, "cfx_data")
+    if res and "Data" in res:
+        return res["Data"]
+    return None
 
 
 class SearchIDModal(discord.ui.Modal, title="🔍 بحث بـ Server ID"):
@@ -220,7 +229,6 @@ class SearchNameModal(discord.ui.Modal, title="🔎 بحث بالاسم"):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
-
 class PlayersPaginationView(discord.ui.View):
     def __init__(self, players_data: list, per_page: int = 25):
         super().__init__(timeout=90)
@@ -280,17 +288,16 @@ class PlayersPaginationView(discord.ui.View):
     @discord.ui.button(label="🔄 تحديث", style=discord.ButtonStyle.success)
     async def btn_refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        _cache.pop("players", None)
+        _cache.pop("cfx_data", None) # تفريغ الكاش الموحد
         fresh = await fetch_players()
         if fresh is None:
             await interaction.followup.send(embed=error_embed("❌ فشل التحديث."), ephemeral=True)
             return
         self.data = fresh
-        self.total_pages = max(1, (len(fresh) + self.per_page - 1) // self.per_page)
+        self.total_pages = max(1, (len(fresh) + self.per_page - 1) // per_page)
         self.current_page = min(self.current_page, self.total_pages - 1)
         self._update_buttons()
         await interaction.edit_original_response(embed=self.get_page_embed(), view=self)
-
 
 
 class PanelView(discord.ui.View):
@@ -313,21 +320,35 @@ class PanelView(discord.ui.View):
     @discord.ui.button(label="📊 إحصائيات", style=discord.ButtonStyle.primary, row=0)
     async def btn_stats(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(thinking=True, ephemeral=True)
-        data, info = await asyncio.gather(fetch_players(), fetch_info())
-        if data is None:
+        # نقوم باستدعاء الدالة لجلب البيانات من كاش Cfx مباشرة
+        data = await fetch_players()
+        info = await fetch_info()
+        
+        if data is None or info is None:
             await interaction.followup.send(
                 embed=error_embed("❌ السيرفر غير متاح حالياً."),
                 ephemeral=True,
             )
             return
+            
         total    = len(data)
-        vars_    = (info or {}).get("vars", {})
-        max_p    = vars_.get("sv_maxClients", "?")
-        srv_name = (info or {}).get("name", vars_.get("sv_hostname", "Unknown"))
+        vars_    = info.get("vars", {})
+        max_p    = vars_.get("sv_maxClients", "32") # كقيمة افتراضية إذا لم تتوفر
+        
+        # تنظيف وقراءة اسم السيرفر بدون أكواد الألوان لفايف إم لجعل الإمبيد أجمل
+        srv_name = info.get("hostname", vars_.get("sv_hostname", "Unknown Server"))
+        if len(srv_name) > 100:
+            srv_name = srv_name[:97] + "..."
+            
         pings    = [p.get("ping", 0) for p in data if isinstance(p.get("ping"), int)]
         avg_ping = round(sum(pings) / len(pings)) if pings else 0
 
-        bar_filled = int((total / int(max_p)) * 10) if str(max_p).isdigit() and int(max_p) > 0 else 0
+        try:
+            max_p_int = int(max_p)
+            bar_filled = int((total / max_p_int) * 10) if max_p_int > 0 else 0
+        except ValueError:
+            bar_filled = 0
+            
         bar = "█" * bar_filled + "░" * (10 - bar_filled)
 
         embed = discord.Embed(title="📊 إحصائيات السيرفر", color=COLOR_DEFAULT)
@@ -336,8 +357,8 @@ class PanelView(discord.ui.View):
         embed.add_field(name="👥 اللاعبون",      value=f"`{total} / {max_p}`",         inline=True)
         embed.add_field(name="📶 متوسط البينج",  value=f"`{avg_ping} ms`",             inline=True)
         embed.add_field(name="📈 نسبة الامتلاء", value=f"`[{bar}] {total}/{max_p}`",  inline=False)
-        embed.add_field(name="🌐 العنوان",       value=f"`{SERVER_IP}:{SERVER_PORT}`", inline=True)
-        embed.set_footer(text=f"Server: {SERVER_IP}:{SERVER_PORT}")
+        embed.add_field(name="🌐 العنوان المباشر",       value=f"`connect {SERVER_IP}:{SERVER_PORT}`", inline=True)
+        embed.set_footer(text=f"Server ID: {CFX_ID}")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="🔍 بحث بـ ID", style=discord.ButtonStyle.primary, row=1)
@@ -424,7 +445,6 @@ async def _auto_delete(interaction: discord.Interaction, delay: int = 900):
 async def cmd_panel(interaction: discord.Interaction):
     await interaction.response.send_message(embed=panel_embed(), view=PanelView(), ephemeral=True)
     asyncio.create_task(_auto_delete(interaction, delay=900))
-
 
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
