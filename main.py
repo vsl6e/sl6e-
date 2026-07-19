@@ -405,7 +405,7 @@ bot = FiveMBot()
 async def on_ready():
     await bot.change_presence(
         activity=discord.Streaming(
-            name="BY SL6E & ABO 5LOOD",
+            name="BY SL6E ,
             url="https://www.twitch.tv/placeholder"
         )
     )
