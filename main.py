@@ -426,7 +426,6 @@ async def cmd_panel(interaction: discord.Interaction):
     asyncio.create_task(_auto_delete(interaction, delay=900))
 
 
-
 TOKEN = os.environ.get("DISCORD_TOKEN")
 if TOKEN:
     bot.run(TOKEN)
