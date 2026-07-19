@@ -6,7 +6,7 @@ import asyncio
 import time
 
 
-SERVER_IP   = "185.161.42.49"
+SERVER_IP   = "212.107.14.169"
 SERVER_PORT = "30120"
 GUILD_ID    = 1126668886985670696
 
